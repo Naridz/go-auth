@@ -21,7 +21,7 @@ type LoginRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
-var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
+// var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
 
 func Register(c *gin.Context) {
 	var register RegisterRequest
@@ -53,12 +53,12 @@ func Login(c *gin.Context) {
 	loginUser := new(database.User)
 	res := database.Db.Where("username = ?", user.Username).First(&loginUser)
 	if res.Error != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "invalid username"})
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "invalid username or password"})
 		return
 	}
 	err := bcrypt.CompareHashAndPassword([]byte(loginUser.Password), []byte(user.Password))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "invalid password"})
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "invalid username or password"})
 		return
 	}
 	claims := jwt.MapClaims{
@@ -67,7 +67,13 @@ func Login(c *gin.Context) {
 		"exp":      time.Now().Add(time.Minute * 5).Unix(),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString(jwtSecret)
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "error"})
+		return
+	}
+
+	tokenString, err := token.SignedString([]byte(secret))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate token"})
 		return
